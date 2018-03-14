@@ -6,6 +6,7 @@ import struct
 import sys
 import datetime
 import proto
+import time
 
 if sys.version_info[0] != 3:
     print('This program requires Python 3')
@@ -14,8 +15,8 @@ if sys.version_info[0] != 3:
 SUPPORTED_PROTOCOLS = [2, 4]
 
 UDP_IP = "127.0.0.1"
-UDP_PORT = 12000
-UDP_SEND_PORT = 11000
+UDP_PORT = 12003
+UDP_SEND_PORT = 11003
 
 
 class Vector3f(object):
@@ -368,7 +369,7 @@ class Pserver(object):
         self._send(bw.buff)
         
     def getlogfile(self):
-        if not self.logfile or (self.logfileTime and (datetime.datetime.now() - self.logfileTime) > datetime.timedelta(seconds = 30)):
+        if not self.logfile or (self.logfileTime and (datetime.datetime.now() - self.logfileTime) > datetime.timedelta(hours = 1)):
             if self.logfile:
                 self.logfile.close()
                 
@@ -383,8 +384,8 @@ class Pserver(object):
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(("", UDP_PORT))
+
         self._enable_realtime_report()
-        
         flushCounter = 0
         
         print('Waiting for data from %s:%s' % (UDP_IP, UDP_PORT))
@@ -394,13 +395,15 @@ class Pserver(object):
             
             if len(sdata) > 0 and len(sdata) <= 1024:
                 logfile = self.getlogfile()
+                millis = int(round(time.time() * 1000))
+                logfile.write(struct.pack('Q', millis))
                 logfile.write(sdata)
                 logfile.write(('\x00' * (1024 - len(sdata))).encode('ascii'))
-                flushCounter += 1024
-                if flushCounter > 1024 * 1024:
-                    logfile.flush()
-                    flushCounter = 0
-                    print('log flushed to file')
+                #flushCounter += 1024
+                #if flushCounter > 1024 * 1024:
+                #    logfile.flush()
+                #    flushCounter = 0
+                #    print('log flushed to file')
             else:
                 print('packet too long: ' + str(len(sdata)))
             

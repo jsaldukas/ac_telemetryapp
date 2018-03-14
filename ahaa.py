@@ -84,7 +84,7 @@ class TelemetrySession:
         global logPrefix
         ac.console(logPrefix + "{}: {}".format(method, msg))
         
-    def frame(self, lap, lapTimeMs, lastLapTimeMs, trackPosition, speedKmh, lapInvalidated, gas, brake, gear):
+    def frame(self, lap, lapTimeMs, lastLapTimeMs, trackPosition, worldPosition, accG, speedKmh, lapInvalidated, gas, brake, gear):
         
         if not self.currentLapTelemetry or self.currentLapTelemetry.lapNumber != lap:
             self.__debug("frame", "Lap change to {}".format(lap))
@@ -112,7 +112,13 @@ class TelemetrySession:
             "lapInvalidated": lapInvalidated,
             "gas": gas,
             "brake": brake,
-            "gear": gear
+            "gear": gear,
+            "pos_x": worldPosition[0],
+            "pos_y": worldPosition[1],
+            "pos_z": worldPosition[2],
+            "accg_x": accG[0],
+            "accg_y": accG[1],
+            "accg_z": accG[2],
         }
         
         # Only log every 100 ms or on start/finish
@@ -185,6 +191,8 @@ def onRender(delta_t):
                 lastLapTimeMs = lastLapTimeMs,
                 lapInvalidated = lapInvalidated,
                 trackPosition = trackPosition,
+                worldPosition = worldPosition,
+                accG = accG,
                 speedKmh = speedKmh,
                 gas = gas,
                 brake = brake,

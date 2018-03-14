@@ -78,6 +78,12 @@ class BinaryReader(object):
         r = struct.unpack_from(fmt, self.data, self.offset)[0]
         self.offset += struct.calcsize(fmt)
         return r
+        
+    def read_uint64(self):
+        fmt = 'Q'
+        r = struct.unpack_from(fmt, self.data, self.offset)[0]
+        self.offset += struct.calcsize(fmt)
+        return r
 
     def read_utf_string(self):
         length = self.read_byte()
@@ -123,8 +129,13 @@ class CarLapExtractor:
     def __init__(self, car_id):
         self.car_id = car_id
         self.frames = []
+        self.firstTimeMs = 0
         
     def handleCarUpdate(self, carUpdate):
+        if not self.firstTimeMs:
+            self.firstTimeMs = carUpdate["time_ms"]
+        
+        carUpdate["time_ms"] -= self.firstTimeMs
         self.frames.append(carUpdate)
     
     def __format_laptime(self, ms):
@@ -148,6 +159,8 @@ class CarLapExtractor:
             filename += CarLapExtractor.reNonAlpha.sub(carInfo["driver_name"], "_")
         else:
             filename += "{:02}".format(self.car_id)
+            
+        filename += "_{:06}".format(self.frames[len(self.frames)-1]["time_ms"])
         
         i = 1
         suffix = ''
@@ -208,7 +221,7 @@ class LapExtractor(object):
               (car_id, car_model, car_skin, driver_name, driver_team, driver_guid, is_connected))
         # TODO: implement example testSetSessionInfo()
 
-    def _handle_car_update(self):
+    def _handle_car_update(self, time_ms):
         car_id = self.br.read_byte()
         pos = self.br.read_vector_3f()
         velocity = self.br.read_vector_3f()
@@ -217,6 +230,7 @@ class LapExtractor(object):
         normalized_spline_pos = self.br.read_single()
         
         carUpdate = {
+            "time_ms": time_ms,
             "car_id": car_id,
             "pos_x": pos.x,
             "pos_y": pos.y,
@@ -489,12 +503,16 @@ class LapExtractor(object):
             with open(file, 'rb') as logfile:
                 
                 while True:
-                    sdata = logfile.read(1024)
+                    sdata = logfile.read(1032)
                     if len(sdata) == 0:
                         break
                         
                     self.br = BinaryReader(sdata)
+                    
+                    time_ms = self.br.read_uint64()
                     packet_id = self.br.read_byte()
+                    
+                    #print("Time: {:6} Type: {}".format(time_ms, packet_id))
                     
                     if packet_id == proto.ACSP_ERROR:
                         self._handle_error()
@@ -519,7 +537,7 @@ class LapExtractor(object):
                     elif packet_id == proto.ACSP_CAR_INFO:
                         self._handle_car_info()
                     elif packet_id == proto.ACSP_CAR_UPDATE:
-                        self._handle_car_update()
+                        self._handle_car_update(time_ms)
                     elif packet_id == proto.ACSP_NEW_CONNECTION:
                         self._handle_new_connection()
                     elif packet_id == proto.ACSP_CONNECTION_CLOSED:
