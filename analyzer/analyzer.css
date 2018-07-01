@@ -1,0 +1,9 @@
+.testb {
+	background: red;
+	width: 200px;
+	display: inline-block;
+}
+
+.testc {
+	vertical-align: top;
+}
