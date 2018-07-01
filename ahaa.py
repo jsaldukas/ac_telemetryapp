@@ -11,7 +11,7 @@
 appName = "ahaa"
 logPrefix = appName + ": "
 appFolder = "apps/python/" + appName
-#uploadUrl = 
+lapsFolder = appFolder + "/laps"
 
 import ac
 import acsys
@@ -20,6 +20,8 @@ import csv
 import datetime
 import sys
 import traceback
+import os
+import configparser
 # import os, platform, sys
 # if platform.architecture()[0] == "64bit":
     # sys.path.insert(0, "apps/python/" + appName + "/stdlib64")
@@ -33,16 +35,41 @@ ac.log(logPrefix + "Started, version v0.1")
 appWindow = 0
 label1 = 0
 telemetrySession = 0
+cfg = 0
+ui_enableButton = 0
 
+class Configuration:
+    def __init__(self):
+        self.enable = 0
+    def load(self):
+        config = configparser.SafeConfigParser()
+        try:
+            config.read(appFolder + "/config.ini")
+            self.enable = config.get(appName, "enable") == "1"
+            ac.log(logPrefix + "Config loaded!")
+        except Exception as e:
+            ac.log(logPrefix + "Config load ERROR. type=%s" % (type(e)), 1)
+    def save(self):
+        config = configparser.SafeConfigParser()
+        try:
+            config.add_section(appName)
+            config.set(appName, "enable", self.enable)
+            with open(appFolder + "/config.ini", "w") as config_file:
+                config.write(config_file)
+            ac.log(logPrefix + "Config saved!")
+        except Exception as e:
+            ac.log(logPrefix + "Config save ERROR. type=%s" % (type(e)), 1)
+    
 class LapTelemetry:
     def __init__(self, carName, trackNameConfig, serverName, lapNumber):
         global appFolder, logPrefix
         
         datetimeStr = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        self.filename = datetimeStr + "_" + trackNameConfig + "__" + carName + "_" + str(lapNumber) + ".csv"
-        filepath = appFolder + "/" + self.filename
+        self.fileextension = ".csv"
+        self.filename = datetimeStr + "__" + trackNameConfig + "__" + carName + "__" + str(lapNumber) + self.fileextension
+        self.filepath = lapsFolder + "/" + self.filename
         
-        self.file = open(filepath, "w", newline="")
+        self.file = open(self.filepath, "w", newline="")
         self.filewriter = csv.writer(self.file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         self.file.flush()
         
@@ -55,10 +82,16 @@ class LapTelemetry:
             self.headersWritten = True
             
         self.filewriter.writerow(list(data.values()))
+        
+    def __formatLapTimeForFilename(self, lapTimeMs):
+        text = "{:02d}m{:02d}.{:03d}s".format(int(lapTimeMs / 60000), int(lapTimeMs / 1000 % 60), int(lapTimeMs % 1000))
+        return text
     
-    def finish(self):
+    def finish(self, lapTimeMs):
         self.file.close()
         self.file = 0
+        newFilepath = ('.').join(self.filepath.split('.')[:-1]) + "__" + self.__formatLapTimeForFilename(lapTimeMs) + self.fileextension
+        os.rename(self.filepath, newFilepath)
 
 class TelemetrySession:
     def start(self, carName, trackName, trackConfig, trackLength, interval = 100):
@@ -72,6 +105,9 @@ class TelemetrySession:
         self.interval = interval
     
     def finish(self):
+        if self.currentLapTelemetry:
+            self.currentLapTelemetry.finish(self.lastRecordedLapTime)
+            
         self.__reset()
         
     def __reset(self):
@@ -93,7 +129,7 @@ class TelemetrySession:
                     # use exact result lap time as calculated by AC as last record in telemetry
                     self.lastData["lapTimeMs"] = lastLapTimeMs
                     self.currentLapTelemetry.addData(self.lastData)
-                self.currentLapTelemetry.finish()
+                self.currentLapTelemetry.finish(lastLapTimeMs)
                 self.__debug("frame", "Finished lap {}".format(self.currentLapTelemetry.lapNumber))
             
             self.currentLapTelemetry = LapTelemetry(
@@ -134,35 +170,29 @@ def printExceptionInfo(contextName=''):
     global logPrefix
     ac.console(logPrefix + "Exception[{}]: {}".format(contextName, traceback.format_exc(1)))
     ac.log(logPrefix + "Exception[{}]: {}".format(contextName, traceback.format_exc()))
-    
-def onActivate(*args):
+
+def startTelemetry():
     global logPrefix, telemetrySession
-    ac.console(logPrefix + "onActivate()")
-    try:
-        telemetrySession = TelemetrySession()
-        
-        trackName = ac.getTrackName(0)
-        trackConfig = ac.getTrackConfiguration(0)
-        trackLength = ac.getTrackLength(0)
-        carName = ac.getCarName(0)
-        
-        telemetrySession.start(
-            carName = carName, 
-            trackName = trackName, 
-            trackConfig = trackConfig, 
-            trackLength = trackLength)
-    except:
-        printExceptionInfo("onActivate")
     
-def onDismiss(*args):
-    global logPrefix, telemetrySession
-    ac.console(logPrefix + "onDismiss()")
-    try:
-        if telemetrySession:
-            telemetrySession.finish()
-            telemetrySession = 0
-    except:
-        printExceptionInfo("onDismiss")
+    telemetrySession = TelemetrySession()
+    
+    trackName = ac.getTrackName(0)
+    trackConfig = ac.getTrackConfiguration(0)
+    trackLength = ac.getTrackLength(0)
+    carName = ac.getCarName(0)
+    
+    telemetrySession.start(
+        carName = carName, 
+        trackName = trackName, 
+        trackConfig = trackConfig, 
+        trackLength = trackLength)
+        
+def stopTelemetry():
+    global telemetrySession
+    
+    if telemetrySession:
+        telemetrySession.finish()
+        telemetrySession = 0
     
 def onRender(delta_t):
     global label1, appWindow, telemetrySession
@@ -181,7 +211,7 @@ def onRender(delta_t):
     brake = ac.getCarState(0, acsys.CS.Brake)
     gear = ac.getCarState(0, acsys.CS.Gear)
     
-    ac.setText(label1, "1TrackPos: {}\r\nSpeed: {}\r\nLap: {}\r\nLapTime: {} (invalid:{})\r\nWorldPos: {};{};{}".format(trackPosition, speedKmh, lapCount, lapTimeMs, lapInvalidated, worldPosition[0], worldPosition[1], worldPosition[2]))
+    ac.setText(label1, "TrackPos: {}\r\nSpeed: {}\r\nLap: {}\r\nLapTime: {} (invalid:{})\r\nWorldPos: {};{};{}".format(trackPosition, speedKmh, lapCount, lapTimeMs, lapInvalidated, worldPosition[0], worldPosition[1], worldPosition[2]))
     
     if telemetrySession:
         try:
@@ -200,25 +230,52 @@ def onRender(delta_t):
         except:
             printExceptionInfo("onRender:call frame()")
             
-# This function gets called by AC when the Plugin is initialised
+def onEnableButtonClicked():
+    global cfg, ui_enableButton
+    
+    ac.console(logPrefix + "Enable button clicked")
+    
+    if cfg.enable > 0:
+        cfg.enable = 0
+        ac.setText(ui_enableButton, "Enable")
+        stopTelemetry()
+    else:
+        cfg.enable = 1
+        ac.setText(ui_enableButton, "Disable")
+        startTelemetry()
+        
+    cfg.save()
+    
+            # This function gets called by AC when the Plugin is initialised
 # The function has to return a string with the plugin name
 def acMain(ac_version):
-    global appWindow, label1, logPrefix, appName
+    global appWindow, label1, logPrefix, appName, cfg, ui_enableButton
     ac.console(logPrefix + "acMain")
     try:
         appWindow = ac.newApp(appName)
+        
+        cfg = Configuration()
+        cfg.load()
+        
         ac.setTitle(appWindow, "")
         ac.setSize(appWindow, 400, 200)
         ac.drawBorder(appWindow, 0)
         ac.setBackgroundOpacity(appWindow, 0)
         
-        label1 = ac.addLabel(appWindow, "____")
-        ac.setPosition(label1, 0, 30)
-        
         ac.addRenderCallback(appWindow, onRender)
-        ac.addOnAppActivatedListener(appWindow, onActivate)
-        ac.addOnAppDismissedListener(appWindow, onDismiss)
         
+        ui_enableButton = ac.addButton(appWindow, "Enable")
+        ac.setPosition(ui_enableButton, 0, 30)
+        ac.setSize(ui_enableButton, 70, 30)
+        ac.addOnClickedListener(ui_enableButton, onEnableButtonClicked)
+        
+        label1 = ac.addLabel(appWindow, "____")
+        ac.setPosition(label1, 0, 65)
+        
+        if cfg.enable > 0:
+            ac.setText(ui_enableButton, "Disable")
+            startTelemetry()
+            
         ac.console(logPrefix + "Initialized")
     except:
         printExceptionInfo("acMain")
