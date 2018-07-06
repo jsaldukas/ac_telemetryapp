@@ -1,3 +1,61 @@
+
+function refreshLapSelectors() {
+	LapList.loadAsync().then(function (laps) {
+		var lapSelectsSelector = '#lap1Selector, #lap2Selector';
+		$(lapSelectsSelector).empty();
+
+		function renderLapOptionHtml(lap, showTrack) {
+			var text = '';
+			if(showTrack) {
+				text = lap.track + ' - ';
+			}
+			text += lap.car + ' - ' + lap.datetime.format('mm:ss.SSS');
+			return '<option value="' + lap.url + '">' + text + '</option>';
+		}
+
+		laps.forEach(function (lap) {
+			$('#lap1Selector').append(renderLapOptionHtml(lap, true));
+		});
+
+		$('#lap1Selector')
+			.formSelect()
+			.change(function (event) {
+				var selectedLap = laps.find(function (lap) { return lap.url === event.target.value; });
+
+				var lap2SelectorOptionsHtml = '';
+				var sameTrackLaps = laps.filter(function (lap) { return selectedLap.track === lap.track; });
+				sameTrackLaps = sameTrackLaps.filter(function (lap) { return selectedLap.url !== lap.url; });
+				var sameCarLaps = sameTrackLaps.filter(function (lap) { return selectedLap.car === lap.car; });
+				sameTrackLaps = sameTrackLaps.filter(function (lap) { return !sameCarLaps.some(function (innerLap) { return innerLap.url === lap.url; }); });
+
+				if(sameCarLaps.length > 0) {
+					lap2SelectorOptionsHtml += '<optgroup label="Same track & car">';
+					sameCarLaps.forEach(function (lap) { lap2SelectorOptionsHtml += renderLapOptionHtml(lap); });
+					lap2SelectorOptionsHtml += '</optgroup>';
+				}
+
+				if(sameTrackLaps.length > 0) {
+					lap2SelectorOptionsHtml += '<optgroup label="Same track">';
+					sameTrackLaps.forEach(function (lap) { lap2SelectorOptionsHtml += renderLapOptionHtml(lap); });
+					lap2SelectorOptionsHtml += '</optgroup>';
+				}
+
+				if(sameCarLaps.length == 0 && sameTrackLaps.length == 0) {
+					lap2SelectorOptionsHtml += '<optgroup label="No matching laps"></optgroup>';
+				}
+
+				$('#lap2Selector').html(lap2SelectorOptionsHtml).formSelect();
+			});
+
+		$('#lap2Selector')
+			.change(function () {
+				var url1 = $('#lap1Selector').val();
+				var url2 = $('#lap2Selector').val();
+				loadLapComparison(url1, url2);
+			});
+	});
+}
+
 var LapAnalysisCanvas = function (options) {
 	if(!options) throw 'LapAnalysisCanvas: op1tions parameter must be specified';
 	if(!options.canvas) throw 'LapAnalysisCanvas: options.canvas parameter must be specified';
@@ -363,58 +421,6 @@ var LapAnalysisCanvas = function (options) {
 	};
 };
 
-var LapLoader = function () {
-	
-	function loadLapData(url) {
-		// time_ms,car_id,pos_x,pos_y,pos_z,velocity_x,velocity_y,velocity_z,gear,engine_rpm,normalized_spline_pos
-		return $.ajax({
-			url: url,
-			method: 'GET'
-		}).then(function (data) {
-			var rows = data.split("\r\n");
-			var lapFrames = [];
-			var header = rows[0].split(',');
-			for(var i = 1; i < rows.length; i++) {
-				var cols = rows[i].split(',');
-				if(cols.length <= 1)
-					continue;
-				var lapFrame = {};
-				for(var j = 0; j < cols.length; j++) {
-					var value = cols[j];
-					var floatValue = parseFloat(value);
-					if(!isNaN(floatValue))
-						value = floatValue;
-					lapFrame[header[j]] = value;
-				}
-				lapFrames.push(lapFrame);
-			}
-			
-			normalizeFieldNames(lapFrames);
-			adjustLapTime(lapFrames);
-			
-			return lapFrames;
-		});
-	}
-	
-	function normalizeFieldNames(lap) {
-		lap.forEach(function (frame) { 
-			if(frame.lapTimeMs) frame.time_ms = frame.lapTimeMs;
-			if(frame.trackPosition) frame.normalized_spline_pos = frame.trackPosition;
-		});
-	}
-	
-	function adjustLapTime(lap) {
-		var minTimeMs = lap[0].time_ms;
-		lap.forEach(function (frame) { 
-			frame.time_ms -= minTimeMs;
-		});
-	}
-
-	
-	return {
-		load: loadLapData
-	};
-}
 
 // function setLapCanvasCoordinates(lapData, canvasSize) {
 	// var lapRect = calculateLapRect(lapData);
@@ -436,10 +442,9 @@ var LapLoader = function () {
 // var lapsAnimateContext = {};
 
 function loadLapComparison(lapUrl1, lapUrl2) {
-	var lapLoader = LapLoader();
 	var lapAnalysisCanvas = 0;
-	lapLoader.load(lapUrl1).then(function (lapData1) {
-		lapLoader.load(lapUrl2).then(function (lapData2) {
+	Lap.loadAsync(lapUrl1).then(function (lapData1) {
+		Lap.loadAsync(lapUrl2).then(function (lapData2) {
 			lapAnalysisCanvas = LapAnalysisCanvas({
 				canvas: '#myCanvas',
 				laps: [lapData1, lapData2]
@@ -539,15 +544,7 @@ function loadLapComparison(lapUrl1, lapUrl2) {
 	// }
 // }
 
-
-loadLapComparison('01.32.962_Justinas Saldukas_092769.csv', '01.32.127_Jurij Lapo_091938.csv');
-
-// loadLapData('laps/01.29.538_18.csv').then(function (lapData) {
-	// setLapCanvasCoordinates(lapData, 300, 300);
-	// drawLap(lapData);
-// });
-
-// loadLapData('laps/01.29.538_18.csv').then(function (lapData) {
-	// setLapCanvasCoordinates(lapData, 300, 300);
-	// drawLap(lapData);
-// });
+$(document).ready(function(){
+	M.AutoInit();
+	refreshLapSelectors();
+});

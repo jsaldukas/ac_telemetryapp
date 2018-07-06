@@ -5,12 +5,59 @@
 		<meta charset="utf-8">	
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 
+		<link
 		<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 		<!-- Compiled and minified CSS -->
-		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/css/materialize.min.css">
+		<link rel="stylesheet" href="node_modules/materialize-css/dist/css/materialize.css">
 		<link rel="stylesheet" href="analyzer.css">
 	</head>
 	<body>
+		<div class="row">
+			<div class="card blue-grey lighten-3">
+				<div class="card-content white-text">
+					<div class="row">
+						<div class="col s6">
+							<div class="input-field">
+								<select id="lap1Selector"></select>
+								<label>Select base lap</label>
+							</div>
+							<div class="row">
+								<div class="col s6"><strong></strong></div>
+								<div class="col s6"></div>
+							</div>
+						</div>
+						<div class="col s6">
+							<div class="input-field">
+								<select id="lap2Selector"></select>
+								<label>Select target lap</label>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<!-- <nav>
+			<div class="nav-wrapper">
+				<a href="#" class="brand-logo">Logo</a>
+				<ul id="nav-mobile" class="right hide-on-med-and-down">
+				<li>
+					<select id="lap1Selector"></select>
+				</li>
+				<li><a href="#"></a></li>
+				<li><a href="#">Components</a></li>
+				<li><a href="#">JavaScript</a></li>
+				</ul>
+			</div>
+		</nav> -->
+<!-- 
+		<div class="card-panel lighten-2 row">
+			<div class="input-field col s6">
+				<select id="lap1Selector"></select>
+				<label>Select base lap</label>
+			</div>
+			
+		</div> -->
+		
 		<div class="testc">
 			<canvas id="myCanvas" width="800" height="800" style="border:1px solid #d3d3d3;"></canvas>
 			
@@ -26,10 +73,13 @@
 			</div>
 		</div>
 		
-		<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
-
+		<script src="node_modules/jquery/dist/jquery.min.js"></script>
 		<!-- Compiled and minified JavaScript -->
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/js/materialize.min.js"></script>
-		<script src="analyzer.js"></script>
+		<script src="node_modules/materialize-css/dist/js/materialize.js"></script>
+		<script src="node_modules/moment/min/moment.min.js"></script>
+		<script src="node_modules/konva/konva.min.js"></script>
+		<script src="js/lap.js"></script>
+		<script src="js/lap-list.js"></script>
+		<script src="js/analyzer.js"></script>
 	</body>
 </html>
